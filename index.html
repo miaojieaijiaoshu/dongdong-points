@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="咚咚的积分宝箱">
+  <title>咚咚的积分宝箱</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    :root {
+      --orange: #FF6B35;
+      --orange-light: #FF8C5A;
+      --gold: #FFD166;
+      --gold-light: #FFE599;
+      --green: #06D6A0;
+      --red: #EF476F;
+      --bg: #FFF8F0;
+      --card: #FFFFFF;
+      --text: #2D2D2D;
+      --text-muted: #888;
+      --border: #F0E8DF;
+      --shadow: 0 2px 12px rgba(255,107,53,0.10);
+      --radius: 16px;
+      --nav-h: 68px;
+    }
+
+    html, body {
+      height: 100%; background: var(--bg); color: var(--text);
+      font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+      overflow: hidden;
+    }
+
+    /* ── Layout ── */
+    #app { height: 100%; display: flex; flex-direction: column; }
+
+    .screen {
+      display: none; flex: 1; overflow-y: auto; padding: 0 0 calc(var(--nav-h) + 8px);
+      -webkit-overflow-scrolling: touch;
+    }
+    .screen.active { display: block; }
+
+    /* ── Top bar ── */
+    .topbar {
+      background: var(--orange);
+      color: white;
+      padding: 52px 20px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .topbar h1 { font-size: 20px; font-weight: 700; }
+    .topbar .admin-btn {
+      background: rgba(255,255,255,0.2); border: none; color: white;
+      padding: 6px 12px; border-radius: 20px; font-size: 13px; cursor: pointer;
+    }
+
+    /* ── Bottom nav ── */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      height: var(--nav-h);
+      background: white;
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .nav-item {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      gap: 4px; padding: 10px 0; cursor: pointer; border: none; background: none;
+      color: var(--text-muted); font-size: 11px; font-family: inherit;
+    }
+    .nav-item .icon { font-size: 24px; }
+    .nav-item.active { color: var(--orange); }
+    .nav-item.active .icon { transform: scale(1.1); }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 16px; margin: 12px 16px 0;
+    }
+    .card-title { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+
+    /* ── Home screen ── */
+    .points-hero {
+      background: linear-gradient(135deg, var(--orange) 0%, var(--gold) 100%);
+      margin: 12px 16px 0; border-radius: var(--radius);
+      padding: 28px 24px; text-align: center; color: white;
+      box-shadow: 0 4px 20px rgba(255,107,53,0.3);
+    }
+    .points-hero .label { font-size: 14px; opacity: 0.85; margin-bottom: 4px; }
+    .points-hero .number { font-size: 72px; font-weight: 800; line-height: 1; }
+    .points-hero .unit { font-size: 18px; opacity: 0.85; margin-top: 2px; }
+    .points-hero .pending-note {
+      margin-top: 10px; font-size: 12px; opacity: 0.75;
+      background: rgba(255,255,255,0.2); border-radius: 10px; padding: 4px 10px; display: inline-block;
+    }
+
+    .txn-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 0; border-bottom: 1px solid var(--border);
+    }
+    .txn-item:last-child { border-bottom: none; }
+    .txn-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .txn-icon.plus { background: #E8FAF5; }
+    .txn-icon.minus { background: #FEE8EE; }
+    .txn-icon.pending { background: #FFF8E0; }
+    .txn-info { flex: 1; }
+    .txn-info .name { font-size: 14px; font-weight: 500; }
+    .txn-info .time { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .txn-points { font-size: 16px; font-weight: 700; }
+    .txn-points.plus { color: var(--green); }
+    .txn-points.minus { color: var(--red); }
+    .txn-points.pending { color: var(--gold); }
+    .badge { font-size: 11px; padding: 2px 6px; border-radius: 8px; margin-left: 6px; }
+    .badge-pending { background: #FFF8E0; color: #B8860B; }
+    .badge-approved { background: #E8FAF5; color: #0a7a5c; }
+    .badge-rejected { background: #FEE8EE; color: #c0295a; }
+
+    /* ── Submit screen ── */
+    .section-header {
+      padding: 16px 16px 4px; font-size: 13px; color: var(--text-muted); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .rule-card {
+      background: white; margin: 6px 16px 0; border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden; cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .rule-card:active { transform: scale(0.98); }
+    .rule-card-header {
+      display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+    }
+    .rule-emoji { font-size: 28px; }
+    .rule-info { flex: 1; }
+    .rule-name { font-size: 16px; font-weight: 600; }
+    .rule-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .rule-points-badge {
+      background: var(--gold-light); color: #8B6914;
+      padding: 4px 10px; border-radius: 12px; font-size: 13px; font-weight: 700;
+    }
+
+    /* Tier selector (shown inline) */
+    .tier-selector { padding: 0 16px 14px; display: none; }
+    .tier-selector.open { display: block; }
+    .tier-btn {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; padding: 10px 14px; margin-bottom: 6px;
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: 10px; cursor: pointer; font-family: inherit; font-size: 14px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .tier-btn:hover { border-color: var(--orange); background: #FFF3EE; }
+    .tier-btn .pts { font-weight: 700; }
+    .tier-btn .pts.pos { color: var(--green); }
+    .tier-btn .pts.neg { color: var(--red); }
+    .tier-btn .pts.zero { color: var(--text-muted); }
+
+    /* ── Shop screen ── */
+    .reward-card {
+      background: white; margin: 6px 16px 0; border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 14px 16px;
+      display: flex; align-items: center; gap: 12px; cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .reward-card:active { transform: scale(0.98); }
+    .reward-emoji { font-size: 32px; }
+    .reward-info { flex: 1; }
+    .reward-name { font-size: 15px; font-weight: 600; }
+    .reward-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .reward-cost {
+      background: linear-gradient(135deg, var(--orange), var(--gold));
+      color: white; padding: 6px 12px; border-radius: 12px; font-size: 14px; font-weight: 700; white-space: nowrap;
+    }
+
+    /* ── Admin screen ── */
+    .admin-topbar {
+      background: #2D2D2D; color: white;
+      padding: 52px 20px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .admin-topbar h1 { font-size: 20px; font-weight: 700; }
+    .admin-topbar .exit-btn {
+      background: rgba(255,255,255,0.15); border: none; color: white;
+      padding: 6px 12px; border-radius: 20px; font-size: 13px; cursor: pointer;
+    }
+
+    .admin-tabs {
+      display: flex; background: white; border-bottom: 1px solid var(--border);
+      overflow-x: auto; -webkit-overflow-scrolling: touch;
+    }
+    .admin-tab {
+      flex: none; padding: 12px 16px; font-size: 14px; cursor: pointer;
+      border: none; background: none; color: var(--text-muted); font-family: inherit;
+      white-space: nowrap; border-bottom: 2px solid transparent;
+    }
+    .admin-tab.active { color: var(--orange); border-bottom-color: var(--orange); font-weight: 600; }
+
+    .admin-section { display: none; }
+    .admin-section.active { display: block; }
+
+    /* pending items */
+    .pending-item {
+      background: white; margin: 8px 16px 0; border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 14px 16px;
+    }
+    .pending-item .pi-header { display: flex; align-items: center; justify-content: space-between; }
+    .pending-item .pi-name { font-size: 15px; font-weight: 600; }
+    .pending-item .pi-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .pending-item .pi-points { font-size: 18px; font-weight: 800; }
+    .pending-item .pi-points.pos { color: var(--green); }
+    .pending-item .pi-points.neg { color: var(--red); }
+    .pending-item .pi-points.zero { color: var(--text-muted); }
+    .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+    .btn { padding: 8px 16px; border-radius: 10px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .btn-approve { background: var(--green); color: white; flex: 1; }
+    .btn-reject { background: var(--red); color: white; flex: 1; }
+    .btn-primary { background: var(--orange); color: white; }
+    .btn-ghost { background: var(--bg); color: var(--text); border: 1.5px solid var(--border); }
+
+    /* manual points */
+    .form-group { margin: 0 16px 12px; }
+    .form-label { font-size: 13px; color: var(--text-muted); margin-bottom: 6px; display: block; font-weight: 500; }
+    .form-input {
+      width: 100%; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 10px;
+      font-size: 16px; font-family: inherit; background: white; outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-input:focus { border-color: var(--orange); }
+    textarea.form-input { resize: vertical; min-height: 80px; }
+
+    /* rule editor */
+    .rule-editor-item {
+      background: white; margin: 8px 16px 0; border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 14px 16px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .rule-editor-item .re-info { flex: 1; }
+    .rule-editor-item .re-name { font-size: 14px; font-weight: 600; }
+    .rule-editor-item .re-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .toggle {
+      width: 44px; height: 26px; background: #DDD; border-radius: 13px;
+      position: relative; cursor: pointer; transition: background 0.2s; flex-shrink: 0;
+    }
+    .toggle.on { background: var(--green); }
+    .toggle::after {
+      content: ''; position: absolute; width: 22px; height: 22px;
+      background: white; border-radius: 50%; top: 2px; left: 2px;
+      transition: transform 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+    .toggle.on::after { transform: translateX(18px); }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5); z-index: 100;
+      align-items: flex-end; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: white; width: 100%; max-width: 480px;
+      border-radius: 24px 24px 0 0; padding: 24px 20px 40px;
+      animation: slideUp 0.25s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+    .modal-body { margin-bottom: 20px; font-size: 15px; line-height: 1.6; color: var(--text-muted); }
+    .modal-actions { display: flex; gap: 10px; }
+    .modal-actions .btn { flex: 1; padding: 14px; font-size: 15px; }
+
+    /* PIN screen */
+    .pin-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .pin-overlay.open { display: flex; }
+    .pin-box {
+      background: white; border-radius: 24px; padding: 32px 28px;
+      width: 300px; text-align: center;
+    }
+    .pin-box h2 { font-size: 20px; margin-bottom: 8px; }
+    .pin-box p { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; }
+    .pin-dots { display: flex; gap: 12px; justify-content: center; margin-bottom: 24px; }
+    .pin-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--border); transition: background 0.15s; }
+    .pin-dot.filled { background: var(--orange); }
+    .pin-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .pin-key {
+      padding: 16px; border-radius: 12px; border: none; background: var(--bg);
+      font-size: 22px; font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: background 0.1s;
+    }
+    .pin-key:active { background: var(--border); }
+    .pin-key.del { font-size: 18px; }
+    .pin-error { color: var(--red); font-size: 13px; margin-top: -16px; margin-bottom: 8px; height: 18px; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: calc(var(--nav-h) + 16px); left: 50%; transform: translateX(-50%) translateY(20px);
+      background: #2D2D2D; color: white; padding: 10px 20px; border-radius: 20px;
+      font-size: 14px; opacity: 0; transition: opacity 0.2s, transform 0.2s; z-index: 300;
+      white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .empty-state { text-align: center; padding: 48px 24px; color: var(--text-muted); }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state p { font-size: 15px; }
+
+    .fab {
+      position: fixed; right: 20px; bottom: calc(var(--nav-h) + 16px);
+      width: 52px; height: 52px; border-radius: 50%;
+      background: var(--orange); color: white; border: none;
+      font-size: 26px; cursor: pointer; box-shadow: 0 4px 16px rgba(255,107,53,0.4);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .fab:active { transform: scale(0.93); }
+
+    .mt8 { margin-top: 8px; }
+    .mt16 { margin-top: 16px; }
+    .px16 { padding: 0 16px; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══════════════════════ HOME ══════════════════════ -->
+  <div id="screen-home" class="screen active">
+    <div class="topbar">
+      <h1>🏆 咚咚的积分宝箱</h1>
+      <button class="admin-btn" onclick="openPin()">家长入口</button>
+    </div>
+
+    <div class="points-hero">
+      <div class="label">当前积分</div>
+      <div class="number" id="home-points">—</div>
+      <div class="unit">分</div>
+      <div class="pending-note" id="home-pending" style="display:none"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">最近记录</div>
+      <div id="home-txn-list"><div class="empty-state"><div class="icon">📭</div><p>还没有记录</p></div></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════ SUBMIT ══════════════════════ -->
+  <div id="screen-submit" class="screen">
+    <div class="topbar"><h1>📋 申报积分</h1></div>
+    <div id="rules-list" class="mt8"></div>
+  </div>
+
+  <!-- ══════════════════════ SHOP ══════════════════════ -->
+  <div id="screen-shop" class="screen">
+    <div class="topbar"><h1>🎁 礼品商城</h1></div>
+    <div style="padding:12px 16px 4px; font-size:13px; color:var(--text-muted)">
+      当前积分：<strong id="shop-points" style="color:var(--orange)">—</strong> 分
+    </div>
+    <div id="rewards-list" class="mt8"></div>
+  </div>
+
+  <!-- ══════════════════════ ADMIN ══════════════════════ -->
+  <div id="screen-admin" class="screen" style="padding-bottom:0">
+    <div class="admin-topbar">
+      <h1>⚙️ 家长后台</h1>
+      <button class="exit-btn" onclick="exitAdmin()">退出</button>
+    </div>
+    <div class="admin-tabs">
+      <button class="admin-tab active" onclick="switchAdminTab('pending')">待审核 <span id="pending-badge"></span></button>
+      <button class="admin-tab" onclick="switchAdminTab('manual')">手动加减分</button>
+      <button class="admin-tab" onclick="switchAdminTab('rules')">规则管理</button>
+      <button class="admin-tab" onclick="switchAdminTab('rewards')">礼品管理</button>
+      <button class="admin-tab" onclick="switchAdminTab('settings')">设置</button>
+    </div>
+
+    <!-- 待审核 -->
+    <div id="admin-pending" class="admin-section active" style="padding-bottom:80px">
+      <div id="pending-list"></div>
+    </div>
+
+    <!-- 手动加减分 -->
+    <div id="admin-manual" class="admin-section" style="padding:16px 0 80px">
+      <div class="form-group">
+        <label class="form-label">积分变化（正数加分，负数扣分）</label>
+        <input type="number" class="form-input" id="manual-points" placeholder="例：5 或 -2">
+      </div>
+      <div class="form-group">
+        <label class="form-label">原因说明</label>
+        <textarea class="form-input" id="manual-desc" placeholder="例：今天表现特别棒"></textarea>
+      </div>
+      <div class="px16">
+        <button class="btn btn-primary" style="width:100%;padding:14px" onclick="submitManual()">确认提交</button>
+      </div>
+    </div>
+
+    <!-- 规则管理 -->
+    <div id="admin-rules" class="admin-section" style="padding-bottom:80px">
+      <div id="admin-rules-list"></div>
+      <div class="px16 mt16">
+        <button class="btn btn-primary" style="width:100%;padding:14px" onclick="openAddRule()">＋ 添加新规则</button>
+      </div>
+    </div>
+
+    <!-- 礼品管理 -->
+    <div id="admin-rewards" class="admin-section" style="padding-bottom:80px">
+      <div id="admin-rewards-list"></div>
+      <div class="px16 mt16">
+        <button class="btn btn-primary" style="width:100%;padding:14px" onclick="openAddReward()">＋ 添加新礼品</button>
+      </div>
+    </div>
+
+    <!-- 设置 -->
+    <div id="admin-settings" class="admin-section" style="padding:16px 0 80px">
+      <div class="form-group">
+        <label class="form-label">修改家长 PIN 码</label>
+        <input type="number" class="form-input" id="new-pin" placeholder="输入新4位PIN码" maxlength="4">
+      </div>
+      <div class="px16">
+        <button class="btn btn-primary" style="width:100%;padding:14px" onclick="savePin()">保存 PIN 码</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════ BOTTOM NAV ══════════════════════ -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <button class="nav-item active" onclick="switchScreen('home',this)">
+      <span class="icon">🏠</span><span>首页</span>
+    </button>
+    <button class="nav-item" onclick="switchScreen('submit',this)">
+      <span class="icon">✏️</span><span>申报</span>
+    </button>
+    <button class="nav-item" onclick="switchScreen('shop',this)">
+      <span class="icon">🎁</span><span>商城</span>
+    </button>
+  </nav>
+</div>
+
+<!-- ══════════════════════ MODALS ══════════════════════ -->
+<!-- Confirm modal -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal">
+    <div class="modal-title" id="confirm-title"></div>
+    <div class="modal-body" id="confirm-body"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('confirm-modal')">取消</button>
+      <button class="btn btn-primary" id="confirm-ok">确认</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add rule modal -->
+<div class="modal-overlay" id="rule-modal">
+  <div class="modal" style="border-radius:24px;margin:16px;padding-bottom:24px;max-height:80vh;overflow-y:auto">
+    <div class="modal-title" id="rule-modal-title">添加规则</div>
+    <input type="hidden" id="rule-edit-id">
+    <div class="form-group">
+      <label class="form-label">规则名称</label>
+      <input type="text" class="form-input" id="rule-name" placeholder="例：坚持跑步">
+    </div>
+    <div class="form-group">
+      <label class="form-label">分类</label>
+      <input type="text" class="form-input" id="rule-category" placeholder="例：运动">
+    </div>
+    <div class="form-group">
+      <label class="form-label">说明（选填）</label>
+      <input type="text" class="form-input" id="rule-desc" placeholder="例：今天跑了步">
+    </div>
+    <div class="form-group">
+      <label class="form-label">积分（正数加分，负数扣分）</label>
+      <input type="number" class="form-input" id="rule-points" placeholder="例：1">
+    </div>
+    <div style="display:flex;gap:10px;padding:0 16px 0">
+      <button class="btn btn-ghost" style="flex:1;padding:14px" onclick="closeModal('rule-modal')">取消</button>
+      <button class="btn btn-primary" style="flex:1;padding:14px" onclick="saveRule()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add reward modal -->
+<div class="modal-overlay" id="reward-modal">
+  <div class="modal" style="border-radius:24px;margin:16px;padding-bottom:24px">
+    <div class="modal-title" id="reward-modal-title">添加礼品</div>
+    <input type="hidden" id="reward-edit-id">
+    <div class="form-group">
+      <label class="form-label">礼品名称</label>
+      <input type="text" class="form-input" id="reward-name" placeholder="例：去吃火锅">
+    </div>
+    <div class="form-group">
+      <label class="form-label">说明（选填）</label>
+      <input type="text" class="form-input" id="reward-desc" placeholder="例：全家一起">
+    </div>
+    <div class="form-group">
+      <label class="form-label">所需积分</label>
+      <input type="number" class="form-input" id="reward-cost" placeholder="例：20">
+    </div>
+    <div style="display:flex;gap:10px;padding:0 16px 0">
+      <button class="btn btn-ghost" style="flex:1;padding:14px" onclick="closeModal('reward-modal')">取消</button>
+      <button class="btn btn-primary" style="flex:1;padding:14px" onclick="saveReward()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- PIN overlay -->
+<div class="pin-overlay" id="pin-overlay">
+  <div class="pin-box">
+    <h2>🔒 家长入口</h2>
+    <p>请输入4位PIN码</p>
+    <div class="pin-dots">
+      <div class="pin-dot" id="pd0"></div>
+      <div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div>
+      <div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="pin-error" id="pin-error"></div>
+    <div class="pin-keypad">
+      <button class="pin-key" onclick="pinInput('1')">1</button>
+      <button class="pin-key" onclick="pinInput('2')">2</button>
+      <button class="pin-key" onclick="pinInput('3')">3</button>
+      <button class="pin-key" onclick="pinInput('4')">4</button>
+      <button class="pin-key" onclick="pinInput('5')">5</button>
+      <button class="pin-key" onclick="pinInput('6')">6</button>
+      <button class="pin-key" onclick="pinInput('7')">7</button>
+      <button class="pin-key" onclick="pinInput('8')">8</button>
+      <button class="pin-key" onclick="pinInput('9')">9</button>
+      <button class="pin-key" onclick="closePinOverlay()">✕</button>
+      <button class="pin-key" onclick="pinInput('0')">0</button>
+      <button class="pin-key del" onclick="pinDel()">⌫</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://upxdswyydqnxnfcdehlx.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVweGRzd3l5ZHFueG5mY2RlaGx4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5MjIzNjIsImV4cCI6MjA5NjQ5ODM2Mn0.7mcP0LT_U9Ae7CJBQBW-qXuJdhvgdB-3OG-wLbL9nlc';
+
+// ── API helper ──────────────────────────────────────────────────
+const api = {
+  async get(table, query = '') {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    });
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  },
+  async post(table, body) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  },
+  async patch(table, id, body) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  },
+  async patchKey(table, key, body) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?key=eq.${key}`, {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
+  },
+  async del(table, id) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
+    });
+    if (!r.ok) throw new Error(await r.text());
+  }
+};
+
+// ── State ───────────────────────────────────────────────────────
+let approvedPoints = 0;
+let pendingPoints = 0;
+let settings = {};
+let currentPin = '';
+
+// ── Init ────────────────────────────────────────────────────────
+async function init() {
+  try {
+    await loadSettings();
+    await Promise.all([loadHome(), loadRules(), loadRewards()]);
+  } catch (e) {
+    showToast('连接失败，请检查网络');
+    console.error(e);
+  }
+}
+
+async function loadSettings() {
+  const rows = await api.get('settings');
+  settings = {};
+  rows.forEach(r => { settings[r.key] = r.value; });
+}
+
+// ── Points calculation ──────────────────────────────────────────
+async function calcPoints() {
+  const txns = await api.get('transactions', '?status=in.(approved,pending)&order=submitted_at.desc');
+  approvedPoints = txns.filter(t => t.status === 'approved').reduce((s, t) => s + t.points, 0);
+  pendingPoints = txns.filter(t => t.status === 'pending').reduce((s, t) => s + t.points, 0);
+  return { txns, approvedPoints, pendingPoints };
+}
+
+// ── Home ────────────────────────────────────────────────────────
+async function loadHome() {
+  const { txns, approvedPoints: ap, pendingPoints: pp } = await calcPoints();
+  document.getElementById('home-points').textContent = ap;
+  document.getElementById('shop-points').textContent = ap;
+
+  const pendingEl = document.getElementById('home-pending');
+  if (pp !== 0) {
+    pendingEl.style.display = 'inline-block';
+    pendingEl.textContent = `待审核：${pp > 0 ? '+' : ''}${pp} 分`;
+  } else {
+    pendingEl.style.display = 'none';
+  }
+
+  const list = document.getElementById('home-txn-list');
+  const recent = txns.slice(0, 8);
+  if (!recent.length) {
+    list.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>还没有记录</p></div>';
+    return;
+  }
+  list.innerHTML = recent.map(t => {
+    const pts = t.points;
+    const cls = t.status === 'pending' ? 'pending' : pts > 0 ? 'plus' : pts < 0 ? 'minus' : 'pending';
+    const icon = pts > 0 ? '⭐' : pts < 0 ? '😬' : '—';
+    const badge = t.status === 'pending' ? '<span class="badge badge-pending">待审核</span>' :
+                  t.status === 'rejected' ? '<span class="badge badge-rejected">未通过</span>' : '';
+    return `<div class="txn-item">
+      <div class="txn-icon ${cls}">${icon}</div>
+      <div class="txn-info">
+        <div class="name">${t.description}${badge}</div>
+        <div class="time">${fmtDate(t.submitted_at)}</div>
+      </div>
+      <div class="txn-points ${cls}">${pts > 0 ? '+' : ''}${pts}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Rules ────────────────────────────────────────────────────────
+const categoryEmoji = { '作业': '📚', '早起': '🌅', '运动': '🏊', '英语': '🔤', 'other': '⭐' };
+
+async function loadRules() {
+  const rules = await api.get('rules', '?is_active=eq.true&order=sort_order.asc');
+  const container = document.getElementById('rules-list');
+  if (!rules.length) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>暂无规则</p></div>';
+    return;
+  }
+
+  // Group by category
+  const groups = {};
+  rules.forEach(r => {
+    if (!groups[r.category]) groups[r.category] = [];
+    groups[r.category].push(r);
+  });
+
+  container.innerHTML = Object.entries(groups).map(([cat, catRules]) => `
+    <div class="section-header">${categoryEmoji[cat] || '⭐'} ${cat}</div>
+    ${catRules.map(r => renderRuleCard(r)).join('')}
+  `).join('');
+}
+
+function renderRuleCard(rule) {
+  const pts = rule.rule_type === 'tiered'
+    ? `最高 +${Math.max(...rule.tiers.map(t => t.points))} 分`
+    : `${rule.points > 0 ? '+' : ''}${rule.points} 分`;
+  const tierHTML = rule.rule_type === 'tiered'
+    ? `<div class="tier-selector" id="tier-${rule.id}">
+        ${rule.tiers.map((t, i) => `
+          <button class="tier-btn" onclick="submitTier('${rule.id}','${escHtml(rule.name)}',${t.points},'${escHtml(t.label)}')">
+            <span>${t.label}</span>
+            <span class="pts ${t.points > 0 ? 'pos' : t.points < 0 ? 'neg' : 'zero'}">${t.points > 0 ? '+' : ''}${t.points} 分</span>
+          </button>`).join('')}
+      </div>` : '';
+
+  return `<div class="rule-card" id="rulecard-${rule.id}">
+    <div class="rule-card-header" onclick="handleRuleClick('${rule.id}','${escHtml(rule.name)}',${rule.points},'${rule.rule_type}')">
+      <div class="rule-emoji">${categoryEmoji[rule.category] || '⭐'}</div>
+      <div class="rule-info">
+        <div class="rule-name">${rule.name}</div>
+        ${rule.description ? `<div class="rule-desc">${rule.description}</div>` : ''}
+      </div>
+      <div class="rule-points-badge">${pts}</div>
+    </div>
+    ${tierHTML}
+  </div>`;
+}
+
+function handleRuleClick(id, name, points, type) {
+  if (type === 'tiered') {
+    const el = document.getElementById(`tier-${id}`);
+    el.classList.toggle('open');
+  } else {
+    showConfirm(`申报：${name}`, `确认申报「${name}」，得 ${points > 0 ? '+' : ''}${points} 分？`, () => submitSimple(id, name, points));
+  }
+}
+
+async function submitTier(ruleId, ruleName, points, label) {
+  const desc = `${ruleName}（${label}）`;
+  await submitTransaction(ruleId, desc, points);
+  // close tier selector
+  document.querySelectorAll('.tier-selector').forEach(el => el.classList.remove('open'));
+}
+
+async function submitSimple(ruleId, name, points) {
+  await submitTransaction(ruleId, name, points);
+}
+
+async function submitTransaction(ruleId, description, points) {
+  try {
+    await api.post('transactions', { rule_id: ruleId, description, points, status: 'pending' });
+    showToast('✅ 申报成功，等待家长审核');
+    loadHome();
+  } catch(e) {
+    showToast('提交失败，请重试');
+    console.error(e);
+  }
+}
+
+// ── Shop ─────────────────────────────────────────────────────────
+const rewardEmoji = ['🎮','🎬','🍔','🎯','🧸','⚽','🎨','🍦','🎠','🎁'];
+
+async function loadRewards() {
+  const rewards = await api.get('rewards', '?is_active=eq.true&order=sort_order.asc');
+  const container = document.getElementById('rewards-list');
+  if (!rewards.length) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">🎁</div><p>暂无礼品</p></div>';
+    return;
+  }
+  container.innerHTML = rewards.map((r, i) => `
+    <div class="reward-card" onclick="redeemReward('${r.id}','${escHtml(r.name)}',${r.points_cost})">
+      <div class="reward-emoji">${rewardEmoji[i % rewardEmoji.length]}</div>
+      <div class="reward-info">
+        <div class="reward-name">${r.name}</div>
+        ${r.description ? `<div class="reward-desc">${r.description}</div>` : ''}
+      </div>
+      <div class="reward-cost">${r.points_cost} 分</div>
+    </div>`).join('');
+}
+
+async function redeemReward(id, name, cost) {
+  if (approvedPoints < cost) {
+    showToast(`积分不够哦，还差 ${cost - approvedPoints} 分`);
+    return;
+  }
+  showConfirm(`兑换礼品`, `确认兑换「${name}」（${cost} 分）？提交后等爸爸/妈妈确认。`, async () => {
+    try {
+      await api.post('redemptions', { reward_id: id, reward_name: name, points_cost: cost, status: 'pending' });
+      showToast('✅ 兑换申请已提交，等待家长确认');
+    } catch(e) {
+      showToast('提交失败');
+    }
+  });
+}
+
+// ── Admin ────────────────────────────────────────────────────────
+function switchAdminTab(tab) {
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById(`admin-${tab}`).classList.add('active');
+  if (tab === 'pending') loadPending();
+  if (tab === 'rules') loadAdminRules();
+  if (tab === 'rewards') loadAdminRewards();
+}
+
+async function loadPending() {
+  const [txns, redemptions] = await Promise.all([
+    api.get('transactions', '?status=eq.pending&order=submitted_at.desc'),
+    api.get('redemptions', '?status=eq.pending&order=submitted_at.desc')
+  ]);
+  const badge = document.getElementById('pending-badge');
+  const total = txns.length + redemptions.length;
+  badge.textContent = total > 0 ? `(${total})` : '';
+
+  const container = document.getElementById('pending-list');
+  if (!total) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">✅</div><p>没有待审核项目</p></div>';
+    return;
+  }
+
+  const txnHTML = txns.map(t => {
+    const pts = t.points;
+    const cls = pts > 0 ? 'pos' : pts < 0 ? 'neg' : 'zero';
+    return `<div class="pending-item">
+      <div class="pi-header">
+        <div>
+          <div class="pi-name">📋 ${t.description}</div>
+          <div class="pi-meta">${fmtDate(t.submitted_at)}</div>
+        </div>
+        <div class="pi-points ${cls}">${pts > 0 ? '+' : ''}${pts}</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-approve" onclick="reviewTxn('${t.id}','approved')">✓ 通过</button>
+        <button class="btn btn-reject" onclick="reviewTxn('${t.id}','rejected')">✗ 拒绝</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  const redeemHTML = redemptions.map(r => `
+    <div class="pending-item">
+      <div class="pi-header">
+        <div>
+          <div class="pi-name">🎁 兑换：${r.reward_name}</div>
+          <div class="pi-meta">${fmtDate(r.submitted_at)}</div>
+        </div>
+        <div class="pi-points neg">-${r.points_cost}</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-approve" onclick="reviewRedemption('${r.id}','${r.points_cost}','approved')">✓ 确认发货</button>
+        <button class="btn btn-reject" onclick="reviewRedemption('${r.id}',0,'rejected')">✗ 拒绝</button>
+      </div>
+    </div>`).join('');
+
+  container.innerHTML = txnHTML + redeemHTML;
+}
+
+async function reviewTxn(id, status) {
+  await api.patch('transactions', id, { status, reviewed_at: new Date().toISOString() });
+  showToast(status === 'approved' ? '✅ 已通过' : '❌ 已拒绝');
+  loadPending();
+  loadHome();
+}
+
+async function reviewRedemption(id, cost, status) {
+  await api.patch('redemptions', id, { status, reviewed_at: new Date().toISOString() });
+  if (status === 'approved') {
+    // deduct points
+    const desc = await api.get('redemptions', `?id=eq.${id}`);
+    await api.post('transactions', {
+      description: `兑换礼品：${desc[0].reward_name}`,
+      points: -cost, status: 'approved',
+      reviewed_at: new Date().toISOString()
+    });
+    showToast('✅ 已确认，积分已扣除');
+  } else {
+    showToast('❌ 已拒绝');
+  }
+  loadPending();
+  loadHome();
+}
+
+async function submitManual() {
+  const pts = parseInt(document.getElementById('manual-points').value);
+  const desc = document.getElementById('manual-desc').value.trim();
+  if (!pts || !desc) { showToast('请填写积分和原因'); return; }
+  await api.post('transactions', { description: desc, points: pts, status: 'approved', reviewed_at: new Date().toISOString() });
+  document.getElementById('manual-points').value = '';
+  document.getElementById('manual-desc').value = '';
+  showToast('✅ 已添加');
+  loadHome();
+}
+
+async function loadAdminRules() {
+  const rules = await api.get('rules', '?order=sort_order.asc');
+  const container = document.getElementById('admin-rules-list');
+  container.innerHTML = rules.map(r => `
+    <div class="rule-editor-item">
+      <div class="re-info">
+        <div class="re-name">${r.name}</div>
+        <div class="re-meta">${r.category} · ${r.rule_type === 'tiered' ? '分级规则' : `${r.points > 0 ? '+' : ''}${r.points} 分`}</div>
+      </div>
+      <button class="btn btn-ghost" style="margin-right:8px;padding:6px 12px;font-size:13px" onclick="editRule('${r.id}')">编辑</button>
+      <div class="toggle ${r.is_active ? 'on' : ''}" onclick="toggleRule('${r.id}',${r.is_active})"></div>
+    </div>`).join('');
+}
+
+async function toggleRule(id, current) {
+  await api.patch('rules', id, { is_active: !current });
+  loadAdminRules();
+  loadRules();
+}
+
+function openAddRule() {
+  document.getElementById('rule-edit-id').value = '';
+  document.getElementById('rule-modal-title').textContent = '添加规则';
+  document.getElementById('rule-name').value = '';
+  document.getElementById('rule-category').value = '';
+  document.getElementById('rule-desc').value = '';
+  document.getElementById('rule-points').value = '';
+  document.getElementById('rule-modal').classList.add('open');
+}
+
+async function editRule(id) {
+  const rules = await api.get('rules', `?id=eq.${id}`);
+  const r = rules[0];
+  document.getElementById('rule-edit-id').value = id;
+  document.getElementById('rule-modal-title').textContent = '编辑规则';
+  document.getElementById('rule-name').value = r.name;
+  document.getElementById('rule-category').value = r.category;
+  document.getElementById('rule-desc').value = r.description || '';
+  document.getElementById('rule-points').value = r.points || '';
+  document.getElementById('rule-modal').classList.add('open');
+}
+
+async function saveRule() {
+  const id = document.getElementById('rule-edit-id').value;
+  const body = {
+    name: document.getElementById('rule-name').value.trim(),
+    category: document.getElementById('rule-category').value.trim() || 'other',
+    description: document.getElementById('rule-desc').value.trim(),
+    points: parseInt(document.getElementById('rule-points').value) || 0,
+    rule_type: 'simple'
+  };
+  if (!body.name) { showToast('请填写规则名称'); return; }
+  if (id) { await api.patch('rules', id, body); } else { await api.post('rules', body); }
+  closeModal('rule-modal');
+  showToast('✅ 已保存');
+  loadAdminRules();
+  loadRules();
+}
+
+async function loadAdminRewards() {
+  const rewards = await api.get('rewards', '?order=sort_order.asc');
+  const container = document.getElementById('admin-rewards-list');
+  container.innerHTML = rewards.map(r => `
+    <div class="rule-editor-item">
+      <div class="re-info">
+        <div class="re-name">${r.name}</div>
+        <div class="re-meta">${r.points_cost} 分</div>
+      </div>
+      <button class="btn btn-ghost" style="margin-right:8px;padding:6px 12px;font-size:13px" onclick="editReward('${r.id}')">编辑</button>
+      <div class="toggle ${r.is_active ? 'on' : ''}" onclick="toggleReward('${r.id}',${r.is_active})"></div>
+    </div>`).join('');
+}
+
+async function toggleReward(id, current) {
+  await api.patch('rewards', id, { is_active: !current });
+  loadAdminRewards();
+  loadRewards();
+}
+
+function openAddReward() {
+  document.getElementById('reward-edit-id').value = '';
+  document.getElementById('reward-modal-title').textContent = '添加礼品';
+  document.getElementById('reward-name').value = '';
+  document.getElementById('reward-desc').value = '';
+  document.getElementById('reward-cost').value = '';
+  document.getElementById('reward-modal').classList.add('open');
+}
+
+async function editReward(id) {
+  const rewards = await api.get('rewards', `?id=eq.${id}`);
+  const r = rewards[0];
+  document.getElementById('reward-edit-id').value = id;
+  document.getElementById('reward-modal-title').textContent = '编辑礼品';
+  document.getElementById('reward-name').value = r.name;
+  document.getElementById('reward-desc').value = r.description || '';
+  document.getElementById('reward-cost').value = r.points_cost;
+  document.getElementById('reward-modal').classList.add('open');
+}
+
+async function saveReward() {
+  const id = document.getElementById('reward-edit-id').value;
+  const body = {
+    name: document.getElementById('reward-name').value.trim(),
+    description: document.getElementById('reward-desc').value.trim(),
+    points_cost: parseInt(document.getElementById('reward-cost').value) || 0
+  };
+  if (!body.name) { showToast('请填写礼品名称'); return; }
+  if (id) { await api.patch('rewards', id, body); } else { await api.post('rewards', body); }
+  closeModal('reward-modal');
+  showToast('✅ 已保存');
+  loadAdminRewards();
+  loadRewards();
+}
+
+async function savePin() {
+  const pin = document.getElementById('new-pin').value.trim();
+  if (!/^\d{4}$/.test(pin)) { showToast('PIN码需为4位数字'); return; }
+  await api.patchKey('settings', 'pin', { value: `"${pin}"` });
+  settings['pin'] = pin;
+  document.getElementById('new-pin').value = '';
+  showToast('✅ PIN码已更新');
+}
+
+// ── PIN ──────────────────────────────────────────────────────────
+let pinBuffer = '';
+
+function openPin() {
+  pinBuffer = '';
+  updatePinDots();
+  document.getElementById('pin-error').textContent = '';
+  document.getElementById('pin-overlay').classList.add('open');
+}
+
+function closePinOverlay() {
+  document.getElementById('pin-overlay').classList.remove('open');
+}
+
+function pinInput(d) {
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += d;
+  updatePinDots();
+  if (pinBuffer.length === 4) {
+    setTimeout(checkPin, 150);
+  }
+}
+
+function pinDel() {
+  pinBuffer = pinBuffer.slice(0, -1);
+  updatePinDots();
+}
+
+function updatePinDots() {
+  for (let i = 0; i < 4; i++) {
+    document.getElementById(`pd${i}`).classList.toggle('filled', i < pinBuffer.length);
+  }
+}
+
+async function checkPin() {
+  const correctPin = String(settings['pin']).replace(/"/g, '');
+  if (pinBuffer === correctPin) {
+    closePinOverlay();
+    switchScreen('admin', null);
+    document.getElementById('bottom-nav').style.display = 'none';
+    loadPending();
+  } else {
+    document.getElementById('pin-error').textContent = 'PIN码不正确，请重试';
+    pinBuffer = '';
+    updatePinDots();
+  }
+}
+
+function exitAdmin() {
+  switchScreen('home', document.querySelector('.nav-item'));
+  document.getElementById('bottom-nav').style.display = 'flex';
+  loadHome();
+}
+
+// ── Navigation ───────────────────────────────────────────────────
+function switchScreen(name, btn) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(`screen-${name}`).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  if (name === 'home') loadHome();
+  if (name === 'shop') loadRewards();
+}
+
+// ── Modal ────────────────────────────────────────────────────────
+function showConfirm(title, body, onOk) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-body').textContent = body;
+  const btn = document.getElementById('confirm-ok');
+  btn.onclick = () => { closeModal('confirm-modal'); onOk(); };
+  document.getElementById('confirm-modal').classList.add('open');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+// close modal on overlay click
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+
+// ── Helpers ──────────────────────────────────────────────────────
+function fmtDate(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 60000) return '刚刚';
+  if (diff < 3600000) return `${Math.floor(diff/60000)} 分钟前`;
+  if (diff < 86400000) return `今天 ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+function escHtml(s) { return String(s).replace(/'/g, '&#39;'); }
+
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ── Start ────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
