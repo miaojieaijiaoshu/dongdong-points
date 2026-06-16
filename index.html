@@ -320,6 +320,57 @@
     .mt8 { margin-top: 8px; }
     .mt16 { margin-top: 16px; }
     .px16 { padding: 0 16px; }
+
+    /* ── Timer ── */
+    .timer-hero {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      margin: 12px 16px 0; border-radius: var(--radius);
+      padding: 28px 24px; text-align: center; color: white;
+      box-shadow: 0 4px 20px rgba(102,126,234,0.3);
+    }
+    .timer-status { font-size: 14px; opacity: 0.85; margin-bottom: 6px; }
+    .timer-display {
+      font-size: 72px; font-weight: 800; line-height: 1;
+      font-variant-numeric: tabular-nums; letter-spacing: -2px;
+    }
+    .timer-sub { font-size: 12px; opacity: 0.75; margin-top: 8px; min-height: 18px; }
+    .timer-controls { display: flex; gap: 10px; padding: 12px 16px 0; flex-wrap: wrap; }
+    .timer-btn {
+      flex: 1; padding: 16px 12px; border-radius: var(--radius); border: none;
+      font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
+      min-width: 100px; transition: transform 0.1s;
+    }
+    .timer-btn:active { transform: scale(0.96); }
+    .timer-btn-start { background: #667eea; color: white; }
+    .timer-btn-pause { background: var(--gold); color: #7a5800; }
+    .timer-btn-resume { background: var(--green); color: white; }
+    .timer-btn-end { background: var(--orange); color: white; }
+    .timer-btn-disabled { background: var(--border) !important; color: var(--text-muted) !important; cursor: not-allowed !important; }
+    .timer-result {
+      background: white; margin: 12px 16px 0; border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 20px; text-align: center;
+    }
+    .result-time { font-size: 52px; font-weight: 800; color: #667eea; line-height: 1; }
+    .result-label { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+    .result-badge {
+      display: inline-block; margin-top: 12px;
+      padding: 8px 20px; border-radius: 20px; font-size: 14px; font-weight: 700;
+    }
+    .badge-better { background: #E8FAF5; color: #0a7a5c; }
+    .badge-worse  { background: #FEE8EE; color: #c0295a; }
+    .badge-first  { background: #FFF8E0; color: #B8860B; }
+    .history-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 14px;
+    }
+    .history-row:last-child { border-bottom: none; }
+    .history-row .hr-date { color: var(--text-muted); }
+    .history-row .hr-time { font-weight: 600; }
+    .avg-row {
+      background: var(--bg); border-radius: 10px; padding: 10px 14px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 14px; margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -422,6 +473,28 @@
     </div>
   </div>
 
+  <!-- ══════════════════════ TIMER ══════════════════════ -->
+  <div id="screen-timer" class="screen">
+    <div class="topbar" style="background:linear-gradient(135deg,#667eea,#764ba2)"><h1>⏱️ 作业计时</h1></div>
+
+    <div class="timer-hero">
+      <div class="timer-status" id="timer-status">准备好了吗？</div>
+      <div class="timer-display" id="timer-display">00:00</div>
+      <div class="timer-sub" id="timer-sub"></div>
+    </div>
+
+    <div class="timer-controls" id="timer-controls">
+      <button class="timer-btn timer-btn-start" onclick="startTimer()">🚀 开始作业</button>
+    </div>
+
+    <div id="timer-result-area"></div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="card-title">最近5天记录</div>
+      <div id="timer-history"><div class="empty-state" style="padding:24px"><p>还没有记录</p></div></div>
+    </div>
+  </div>
+
   <!-- ══════════════════════ BOTTOM NAV ══════════════════════ -->
   <nav class="bottom-nav" id="bottom-nav">
     <button class="nav-item active" onclick="switchScreen('home',this)">
@@ -429,6 +502,9 @@
     </button>
     <button class="nav-item" onclick="switchScreen('submit',this)">
       <span class="icon">✏️</span><span>申报</span>
+    </button>
+    <button class="nav-item" onclick="switchScreen('timer',this)">
+      <span class="icon">⏱️</span><span>计时</span>
     </button>
     <button class="nav-item" onclick="switchScreen('shop',this)">
       <span class="icon">🎁</span><span>商城</span>
@@ -1050,6 +1126,7 @@ function switchScreen(name, btn) {
   if (btn) btn.classList.add('active');
   if (name === 'home') loadHome();
   if (name === 'shop') loadRewards();
+  if (name === 'timer') initTimerScreen();
 }
 
 // ── Modal ────────────────────────────────────────────────────────
@@ -1090,6 +1167,243 @@ function showToast(msg) {
   el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ── Timer ────────────────────────────────────────────────────────
+const HW_KEY = 'hwTimer';
+let timerInterval = null;
+
+function hwState() {
+  try { return JSON.parse(localStorage.getItem(HW_KEY)) || { state: 'idle' }; }
+  catch { return { state: 'idle' }; }
+}
+function hwSave(s) { localStorage.setItem(HW_KEY, JSON.stringify(s)); }
+
+function fmtSeconds(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+function elapsedSeconds(s) {
+  const now = Date.now();
+  const started = new Date(s.startedAt).getTime();
+  const paused = s.pausedAt ? (now - new Date(s.pausedAt).getTime()) : 0;
+  return Math.floor((now - started - s.pauseDuration * 1000 - paused) / 1000);
+}
+
+function playSound(type) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const play = (freq, start, dur, endFreq) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
+      if (endFreq) osc.frequency.exponentialRampToValueAtTime(endFreq, ctx.currentTime + start + dur * 0.6);
+      gain.gain.setValueAtTime(0.4, ctx.currentTime + start);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + dur);
+    };
+    if (type === 'start') {
+      play(523, 0, 0.15); play(659, 0.12, 0.15); play(784, 0.24, 0.5);
+    } else if (type === 'end') {
+      play(523, 0, 0.2); play(659, 0.18, 0.2); play(784, 0.36, 0.2); play(1047, 0.54, 0.6);
+    } else if (type === 'pause') {
+      play(440, 0, 0.4, 330);
+    } else if (type === 'resume') {
+      play(330, 0, 0.4, 523);
+    }
+  } catch(e) {}
+}
+
+function renderTimerControls(s) {
+  const ctrl = document.getElementById('timer-controls');
+  const status = document.getElementById('timer-status');
+  const sub = document.getElementById('timer-sub');
+
+  if (s.state === 'idle') {
+    status.textContent = '准备好了吗？';
+    sub.textContent = '';
+    ctrl.innerHTML = `<button class="timer-btn timer-btn-start" onclick="startTimer()">🚀 开始作业</button>`;
+  } else if (s.state === 'running') {
+    status.textContent = '⚡ 专注中…';
+    sub.textContent = s.hasPaused ? '已使用暂停一次' : '可暂停一次（吃饭用）';
+    const pauseClass = s.hasPaused ? 'timer-btn timer-btn-disabled' : 'timer-btn timer-btn-pause';
+    const pauseClick = s.hasPaused ? '' : 'onclick="pauseTimer()"';
+    ctrl.innerHTML = `
+      <button class="${pauseClass}" ${pauseClick}>🍚 暂停（吃饭）</button>
+      <button class="timer-btn timer-btn-end" onclick="endTimer()">✅ 完成作业</button>`;
+  } else if (s.state === 'paused') {
+    status.textContent = '⏸ 吃饭中…';
+    sub.textContent = '吃完饭记得点继续';
+    ctrl.innerHTML = `<button class="timer-btn timer-btn-resume" onclick="resumeTimer()">▶️ 继续作业</button>`;
+  } else if (s.state === 'completed') {
+    status.textContent = '🎉 今天完成了！';
+    sub.textContent = '明天继续加油';
+    ctrl.innerHTML = `<button class="timer-btn timer-btn-start" onclick="resetTimer()">重新计时（明天用）</button>`;
+  }
+}
+
+function tickTimer() {
+  const s = hwState();
+  if (s.state !== 'running') return;
+  const secs = elapsedSeconds(s);
+  document.getElementById('timer-display').textContent = fmtSeconds(secs);
+}
+
+function startTimerTick() {
+  clearInterval(timerInterval);
+  timerInterval = setInterval(tickTimer, 1000);
+}
+
+async function startTimer() {
+  const today = new Date().toISOString().slice(0, 10);
+  // Check if already have a session today
+  const existing = await api.get('homework_sessions', `?date=eq.${today}&status=in.(in_progress,completed)`);
+  if (existing.length > 0 && existing[0].status === 'completed') {
+    showToast('今天已经完成计时了');
+    return;
+  }
+  playSound('start');
+  let sessionId;
+  if (existing.length > 0) {
+    sessionId = existing[0].id;
+  } else {
+    const rows = await api.post('homework_sessions', { date: today, started_at: new Date().toISOString(), status: 'in_progress' });
+    sessionId = rows[0].id;
+  }
+  const state = { state: 'running', startedAt: new Date().toISOString(), pausedAt: null, pauseDuration: 0, hasPaused: false, sessionId };
+  hwSave(state);
+  renderTimerControls(state);
+  startTimerTick();
+}
+
+function pauseTimer() {
+  const s = hwState();
+  if (s.state !== 'running' || s.hasPaused) return;
+  playSound('pause');
+  s.state = 'paused';
+  s.pausedAt = new Date().toISOString();
+  s.hasPaused = true;
+  hwSave(s);
+  clearInterval(timerInterval);
+  renderTimerControls(s);
+}
+
+function resumeTimer() {
+  const s = hwState();
+  if (s.state !== 'paused') return;
+  playSound('resume');
+  const pausedSecs = Math.floor((Date.now() - new Date(s.pausedAt).getTime()) / 1000);
+  s.pauseDuration = (s.pauseDuration || 0) + pausedSecs;
+  s.pausedAt = null;
+  s.state = 'running';
+  hwSave(s);
+  renderTimerControls(s);
+  startTimerTick();
+}
+
+async function endTimer() {
+  const s = hwState();
+  if (s.state !== 'running') return;
+  const effectiveSecs = elapsedSeconds(s);
+  playSound('end');
+  clearInterval(timerInterval);
+
+  s.state = 'completed';
+  hwSave(s);
+
+  await api.patch('homework_sessions', s.sessionId, {
+    ended_at: new Date().toISOString(),
+    pause_duration_seconds: s.pauseDuration,
+    effective_seconds: effectiveSecs,
+    status: 'completed'
+  });
+
+  document.getElementById('timer-display').textContent = fmtSeconds(effectiveSecs);
+  renderTimerControls(s);
+  await showTimerResult(effectiveSecs);
+  await loadTimerHistory();
+}
+
+async function showTimerResult(effectiveSecs) {
+  const today = new Date().toISOString().slice(0, 10);
+  const history = await api.get('homework_sessions', `?status=eq.completed&date=neq.${today}&order=date.desc&limit=5`);
+  const area = document.getElementById('timer-result-area');
+
+  let badgeHTML = '';
+  if (history.length === 0) {
+    badgeHTML = `<span class="result-badge badge-first">🌟 第一次记录！加油！</span>`;
+  } else {
+    const avg = Math.round(history.reduce((s, r) => s + r.effective_seconds, 0) / history.length);
+    const diff = avg - effectiveSecs;
+    if (diff > 0) {
+      badgeHTML = `<span class="result-badge badge-better">🚀 比平均快了 ${fmtSeconds(diff)}！+1分奖励已申报</span>`;
+      await api.post('transactions', { description: '作业用时进步奖励', points: 1, status: 'pending' });
+      showToast('✅ 进步奖励已自动申报，等家长审核');
+    } else {
+      badgeHTML = `<span class="result-badge badge-worse">继续努力，比平均慢了 ${fmtSeconds(-diff)}</span>`;
+    }
+  }
+
+  area.innerHTML = `<div class="timer-result">
+    <div class="result-time">${fmtSeconds(effectiveSecs)}</div>
+    <div class="result-label">今天有效作业时长</div>
+    ${badgeHTML}
+  </div>`;
+}
+
+function resetTimer() {
+  const today = new Date().toISOString().slice(0, 10);
+  const s = hwState();
+  // Only allow reset if completed and it's a new day
+  if (s.state === 'completed') {
+    const sessionDate = s.startedAt ? s.startedAt.slice(0, 10) : '';
+    if (sessionDate === today) { showToast('今天已完成，明天再用吧'); return; }
+  }
+  hwSave({ state: 'idle' });
+  document.getElementById('timer-display').textContent = '00:00';
+  document.getElementById('timer-result-area').innerHTML = '';
+  renderTimerControls({ state: 'idle' });
+}
+
+async function loadTimerHistory() {
+  const sessions = await api.get('homework_sessions', '?status=eq.completed&order=date.desc&limit=5');
+  const container = document.getElementById('timer-history');
+  if (!sessions.length) {
+    container.innerHTML = '<div class="empty-state" style="padding:24px"><p>还没有记录</p></div>';
+    return;
+  }
+  const avg = Math.round(sessions.reduce((s, r) => s + r.effective_seconds, 0) / sessions.length);
+  const rows = sessions.map(r => {
+    const d = new Date(r.date);
+    const label = `${d.getMonth()+1}/${d.getDate()}`;
+    return `<div class="history-row"><span class="hr-date">${label}</span><span class="hr-time">${fmtSeconds(r.effective_seconds)}</span></div>`;
+  }).join('');
+  container.innerHTML = rows + `<div class="avg-row"><span>最近${sessions.length}天平均</span><strong>${fmtSeconds(avg)}</strong></div>`;
+}
+
+function initTimerScreen() {
+  const s = hwState();
+  // If running session is from a previous day, auto-reset
+  if (s.state !== 'idle' && s.startedAt) {
+    const sessionDate = s.startedAt.slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    if (sessionDate !== today) { hwSave({ state: 'idle' }); renderTimerControls({ state: 'idle' }); }
+    else {
+      renderTimerControls(s);
+      if (s.state === 'running') { tickTimer(); startTimerTick(); }
+      if (s.state === 'completed') {
+        document.getElementById('timer-display').textContent = fmtSeconds(s.effectiveSecs || 0);
+        showTimerResult(s.effectiveSecs || 0);
+      }
+    }
+  } else {
+    renderTimerControls(s);
+  }
+  loadTimerHistory();
 }
 
 // ── Start ────────────────────────────────────────────────────────
