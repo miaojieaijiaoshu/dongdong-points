@@ -3,6 +3,7 @@
   "short_name": "积分宝箱",
   "description": "咚咚的积分奖励系统",
   "start_url": "/dongdong-points/",
+  "scope": "/dongdong-points/",
   "display": "standalone",
   "background_color": "#FFF8F0",
   "theme_color": "#FF6B35",
